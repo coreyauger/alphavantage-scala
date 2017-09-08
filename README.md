@@ -1,2 +1,2 @@
-# bittrex-scala
-Scala bittrex api wrapper
+# alphavantage-scala
+Reactive wrapper for AlphaVantage API
