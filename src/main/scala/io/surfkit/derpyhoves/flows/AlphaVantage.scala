@@ -333,9 +333,9 @@ object AlphaVantage{
 
 }
 
-class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone)(implicit system: ActorSystem, materializer: Materializer, um: Reads[T]) extends TimeSeries(
+class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer, um: Reads[T]) extends TimeSeries(
   url = s"https://www.alphavantage.co/query?function=${function}&symbol=${symbol}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}",
-  interval = interval.toDuration, Some(tz)) with PlayJsonSupport{
+  interval = interval.toDuration, Some(tz), fuzz) with PlayJsonSupport{
 
   def json(): Source[Try[Future[T]], Cancellable] = super.apply().map{
     case scala.util.Success(response) => scala.util.Success(Unmarshal(response.entity).to[T])
@@ -343,5 +343,5 @@ class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interv
   }
 }
 
-case class AlphaVantageTimeSeries(symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone)(implicit system: ActorSystem, materializer: Materializer)
+case class AlphaVantageTimeSeries(symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer)
   extends AlphaVantage[AlphaVantage.TimeSeriesResponse]("TIME_SERIES_INTRADAY", symbol, interval, tz)

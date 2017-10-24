@@ -16,10 +16,11 @@ import scala.util.Try
 /**
   * Created by suroot on 18/07/17.
   */
-class TimeSeries(url: String, interval: FiniteDuration, hoursOpt: Option[DateTimeZone] = None)(implicit system: ActorSystem, materializer: Materializer) {
+class TimeSeries(url: String, interval: FiniteDuration, hoursOpt: Option[DateTimeZone] = None, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer) {
   import scala.concurrent.duration._
   val request: _root_.akka.http.scaladsl.model.HttpRequest = RequestBuilding.Get(Uri(url))
-  val source: Source[HttpRequest, Cancellable] = Source.tick(0.seconds, interval, request).filter{ _ =>
+  val initialDelat = (60.0-DateTime.now.getSecondOfMinute.toDouble) + (Math.random() * fuzz + 2.0)    // set to the end of the minute plus some fuzzy
+  val source: Source[HttpRequest, Cancellable] = Source.tick(initialDelat.seconds, interval, request).filter{ _ =>
     hoursOpt.map{ timezone =>
       val dt = new DateTime(timezone)
       dt.getHourOfDay >= 8 && dt.getHourOfDay <= 16 && dt.getDayOfWeek() >= org.joda.time.DateTimeConstants.MONDAY && dt.getDayOfWeek() <= org.joda.time.DateTimeConstants.FRIDAY
