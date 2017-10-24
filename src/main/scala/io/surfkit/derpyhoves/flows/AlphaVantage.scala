@@ -15,14 +15,15 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Try
-
+import com.typesafe.config.ConfigFactory
 /**
   * Created by suroot on 18/07/17.
   */
 object AlphaVantage{
   sealed trait AV
 
-  val API_KEY = "XXX"
+  val cfg = ConfigFactory.load
+  val API_KEY = cfg.getString("AlphaVantage.ApiKey")
 
   case class Interval(period: String) extends AV{
     def toDuration = this match{
