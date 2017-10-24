@@ -287,13 +287,18 @@ object AlphaVantage{
 
   object FullTimeSeries extends PlayJsonSupport {
     def get(symbol: String, interval: AlphaVantage.Interval)(implicit system: ActorSystem, materializer: Materializer, um: Reads[AlphaVantage.TimeSeriesResponse]): Future[AlphaVantage.TsResponse] =
-      if(interval.period.contains("min"))
-        Http().singleRequest(HttpRequest(uri = s"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&outputsize=full&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}")).flatMap { response =>
+      if(interval.period.contains("min")) {
+        val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&outputsize=full&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}"
+        println(s"curl -XGET '${url}'")
+        Http().singleRequest(HttpRequest(uri = url)).flatMap { response =>
           Unmarshal(response.entity).to[AlphaVantage.TimeSeriesResponse]
         }
-      else
-        Http().singleRequest(HttpRequest(uri = s"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${AlphaVantage.API_KEY}")).flatMap { response =>
+      }else{
+        val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${AlphaVantage.API_KEY}"
+        println(s"curl -XGET '${url}'")
+        Http().singleRequest(HttpRequest(uri = url)).flatMap { response =>
           Unmarshal(response.entity).to[AlphaVantage.TimeSeriesDailyResponse]
+        }
       }
   }
 
