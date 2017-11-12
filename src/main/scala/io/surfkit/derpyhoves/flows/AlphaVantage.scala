@@ -23,7 +23,11 @@ object AlphaVantage{
   sealed trait AV
 
   val cfg = ConfigFactory.load
-  val API_KEY = cfg.getString("AlphaVantage.ApiKey")
+  val keys = cfg.getStringList("AlphaVantage.ApiKeys").toArray
+  def API_KEY = {
+    val k = Math.floor( Math.random()*keys.length ).toInt
+    keys(k)
+  }
 
   case class Interval(period: String) extends AV{
     def toDuration = this match{
