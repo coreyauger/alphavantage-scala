@@ -2,7 +2,7 @@ package io.surfkit.derpyhoves.flows
 
 import akka.actor.{ActorSystem, Cancellable}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.HttpRequest
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
 import play.api.libs.json._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
@@ -12,7 +12,7 @@ import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import org.joda.time.DateTimeZone
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.Try
 import com.typesafe.config.ConfigFactory
@@ -102,7 +102,7 @@ object AlphaVantage{
   implicit val mddWrites = Json.writes[MetaDataDaily]
   implicit val mddReads = Json.reads[MetaDataDaily]
 
-  case class MetaDataEMA(
+  case class MetaDataMA(
                           `1: Symbol`: String,
                           `2: Indicator`: String,
                           `3: Last Refreshed`: String,
@@ -111,9 +111,39 @@ object AlphaVantage{
                           `6: Series Type`: String,
                           `7: Time Zone`: String
                           ) extends AV
-  implicit val mddEMAWrites = Json.writes[MetaDataEMA]
-  implicit val mddEMAReads = Json.reads[MetaDataEMA]
+  implicit val mddEMAWrites = Json.writes[MetaDataMA]
+  implicit val mddEMAReads = Json.reads[MetaDataMA]
+  // SMA
+  case class SMA(SMA: String) extends AV
+  implicit val smaWrites = Json.writes[SMA]
+  implicit val smaReads = Json.reads[SMA]
 
+  final case class SMASeries(sma: Seq[(String, SMA)]) extends AV
+  implicit val tsSmaFormat: Format[SMASeries] =
+    new Format[SMASeries] {
+      override def reads(json: JsValue): JsResult[SMASeries] = json match {
+        case j: JsObject =>
+          JsSuccess(SMASeries(j.fields.map {
+            case (name, size) =>
+              size.validate[SMA] match {
+                case JsSuccess(validSize, _) =>
+                  (name, validSize)
+                case e: JsError =>
+                  return e
+              }
+          }))
+        case _ =>
+          JsError("Invalid JSON type")
+      }
+      override def writes(o: SMASeries): JsValue = Json.toJson(o.sma.toMap)
+    }
+
+  case class SMAResponse(`Meta Data`: MetaDataMA, `Technical Analysis: SMA`: SMASeries) extends AV
+  implicit val smarWrites = Json.writes[SMAResponse]
+  implicit val smarReads = Json.reads[SMAResponse]
+
+
+  // EMA
   case class EMA(EMA: String) extends AV
   implicit val emaWrites = Json.writes[EMA]
   implicit val eamReads = Json.reads[EMA]
@@ -138,7 +168,7 @@ object AlphaVantage{
       override def writes(o: EMASeries): JsValue = Json.toJson(o.ema.toMap)
     }
 
-  case class EMAResponse(`Meta Data`: MetaDataEMA, `Technical Analysis: EMA`: EMASeries) extends AV
+  case class EMAResponse(`Meta Data`: MetaDataMA, `Technical Analysis: EMA`: EMASeries) extends AV
   implicit val emarWrites = Json.writes[EMAResponse]
   implicit val emarReads = Json.reads[EMAResponse]
 
@@ -196,6 +226,8 @@ object AlphaVantage{
     val KAMA = MaType(7)
     val MESA = MaType(8)
   }
+
+  // STOCHF
   case class MetaDataSTOCHF(
                            `1: Symbol`: String,
                            `2: Indicator`: String,
@@ -233,6 +265,46 @@ object AlphaVantage{
   case class STOCHFResponse(`Meta Data`: MetaDataSTOCHF, `Technical Analysis: STOCHF`: STOCHFSeries) extends AV
   implicit val stochfrWrites = Json.writes[STOCHFResponse]
   implicit val stochfrReads = Json.reads[STOCHFResponse]
+
+
+
+  // RSI
+  case class MetaDataRSI(
+                             `1: Symbol`: String,
+                             `2: Indicator`: String,
+                             `3: Last Refreshed`: String,
+                             `4: Interval`: String,
+                             `5: Time Period`: Int,
+                             `6: Series Type`: String,
+                             `7: Time Zone`: String
+                           ) extends AV
+  implicit val mddRSIWrites = Json.writes[MetaDataRSI]
+  implicit val mddRSIReads = Json.reads[MetaDataRSI]
+
+  case class RSI(RSI: String) extends AV
+  implicit val rsiWrites = Json.writes[RSI]
+  implicit val rsiFReads = Json.reads[RSI]
+
+  final case class RSISeries(rsi: Seq[(String, RSI)]) extends AV
+  implicit val tsRsiFormat: Format[RSISeries] =
+    new Format[RSISeries] {
+      override def reads(json: JsValue): JsResult[RSISeries] = json match {
+        case j: JsObject =>
+          JsSuccess(RSISeries(j.fields.map {
+            case (name, size) =>
+              size.validate[RSI] match {
+                case JsSuccess(validSize, _) => (name, validSize)
+                case e: JsError => return e
+              }
+          }))
+        case _ => JsError("Invalid JSON type")
+      }
+      override def writes(o: RSISeries): JsValue = Json.toJson(o.rsi.toMap)
+    }
+
+  case class RSIResponse(`Meta Data`: MetaDataRSI, `Technical Analysis: RSI`: RSISeries) extends AV
+  implicit val rsirWrites = Json.writes[RSIResponse]
+  implicit val rsirReads = Json.reads[RSIResponse]
 
 
 
@@ -306,35 +378,6 @@ object AlphaVantage{
       }
   }
 
-
-  object AlphaVantageEMA extends PlayJsonSupport {
-    import AlphaVantage._
-    def get(symbol: String, interval: AlphaVantage.Interval, timePeriod: Int)(implicit system: ActorSystem, materializer: Materializer, um: Reads[AlphaVantage.EMAResponse]): Future[AlphaVantage.EMAResponse] = {
-      //println(s"https://www.alphavantage.co/query?function=EMA&time_period=${timePeriod}&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}")
-      Http().singleRequest(HttpRequest(uri = s"https://www.alphavantage.co/query?function=EMA&time_period=${timePeriod}&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}")).flatMap { response =>
-        Unmarshal(response.entity).to[AlphaVantage.EMAResponse]
-      }
-  }}
-
-
-  object AlphaVantageMACD extends PlayJsonSupport {
-    import AlphaVantage._
-    def get(symbol: String, interval: AlphaVantage.Interval)(implicit system: ActorSystem, materializer: Materializer, um: Reads[AlphaVantage.MACDResponse]): Future[AlphaVantage.MACDResponse] = {
-      //println(s"https://www.alphavantage.co/query?function=MACD&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}")
-      Http().singleRequest(HttpRequest(uri = s"https://www.alphavantage.co/query?function=MACD&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}")).flatMap { response =>
-        Unmarshal(response.entity).to[AlphaVantage.MACDResponse]
-      }
-    }}
-
-  object AlphaVantageStochasticFast extends PlayJsonSupport {
-    import AlphaVantage._
-    def get(symbol: String, interval: AlphaVantage.Interval, fastK: Int, fastD: Int, matype: AlphaVantage.MaType = AlphaVantage.MaType.SMA)(implicit system: ActorSystem, materializer: Materializer, um: Reads[AlphaVantage.MACDResponse]): Future[AlphaVantage.STOCHFResponse] = {
-      val url = s"https://www.alphavantage.co/query?function=STOCHF&symbol=${symbol}&fastkperiod=${fastK}&fastdperiod=${fastD}&fastdmatype=${matype.code}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}"
-      Http().singleRequest(HttpRequest(uri = url)).flatMap { response =>
-        Unmarshal(response.entity).to[AlphaVantage.STOCHFResponse]
-      }
-    }}
-
 }
 
 class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer, um: Reads[T]) extends TimeSeries(
@@ -349,3 +392,38 @@ class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interv
 
 case class AlphaVantageTimeSeries(symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer)
   extends AlphaVantage[AlphaVantage.TimeSeriesResponse]("TIME_SERIES_INTRADAY", symbol, interval, tz)
+
+
+
+
+
+
+
+class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer: Materializer, ex: ExecutionContext) extends PlayJsonSupport {
+
+  val baseUrl = "https://www.alphavantage.co/query?function="
+
+  def http(url: String) = Http().singleRequest(HttpRequest(uri = url))
+
+  def unmarshal[T <: AlphaVantage.AV](response: HttpResponse)(implicit um: Reads[T]):Future[T] = Unmarshal(response.entity).to[T]
+
+
+  // API FUNCTIONS
+  def stochasticFast(symbol: String, interval: AlphaVantage.Interval, fastK: Int, fastD: Int, matype: AlphaVantage.MaType = AlphaVantage.MaType.SMA)(implicit um: Reads[AlphaVantage.STOCHFResponse]) =
+    http(baseUrl + s"STOCHF&symbol=${symbol}&fastkperiod=${fastK}&fastdperiod=${fastD}&fastdmatype=${matype.code}&interval=${interval.period}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def rsi(symbol: String, interval: AlphaVantage.Interval, time_period: Int)(implicit um: Reads[AlphaVantage.RSIResponse]) =
+    http(baseUrl + s"RSI&series_type=close&symbol=${symbol}&interval=${interval.period}&time_period=${time_period}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def macd(symbol: String, interval: AlphaVantage.Interval)(implicit um: Reads[AlphaVantage.MACDResponse]) =
+    http(baseUrl + s"MACD&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def ema(symbol: String, interval: AlphaVantage.Interval, timePeriod: Int)(implicit um: Reads[AlphaVantage.EMAResponse]) =
+    http(baseUrl + s"EMA&time_period=${timePeriod}&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def sma(symbol: String, interval: AlphaVantage.Interval, timePeriod: Int)(implicit um: Reads[AlphaVantage.SMAResponse]) =
+    http(baseUrl + s"SMA&time_period=${timePeriod}&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+}
+
+
+
