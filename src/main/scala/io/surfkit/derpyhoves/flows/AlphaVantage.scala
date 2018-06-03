@@ -22,13 +22,6 @@ import com.typesafe.config.ConfigFactory
 object AlphaVantage{
   sealed trait AV
 
-  val cfg = ConfigFactory.load
-  val keys = cfg.getStringList("AlphaVantage.ApiKeys").toArray
-  def API_KEY = {
-    val k = Math.floor( Math.random()*keys.length ).toInt
-    keys(k)
-  }
-
   case class Interval(period: String) extends AV{
     def toDuration = this match{
       case AlphaVantage.Interval.`1min` => 1 minute
@@ -362,15 +355,15 @@ object AlphaVantage{
 
 
   object FullTimeSeries extends PlayJsonSupport {
-    def get(symbol: String, interval: AlphaVantage.Interval)(implicit system: ActorSystem, materializer: Materializer, um: Reads[AlphaVantage.TimeSeriesResponse]): Future[AlphaVantage.TsResponse] =
+    def get(symbol: String, interval: AlphaVantage.Interval, apiKey: String)(implicit system: ActorSystem, materializer: Materializer, um: Reads[AlphaVantage.TimeSeriesResponse]): Future[AlphaVantage.TsResponse] =
       if(interval.period.contains("min")) {
-        val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&outputsize=full&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}"
+        val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&outputsize=full&interval=${interval.period}&apikey=${apiKey}"
         println(s"curl -XGET '${url}'")
         Http().singleRequest(HttpRequest(uri = url)).flatMap { response =>
           Unmarshal(response.entity).to[AlphaVantage.TimeSeriesResponse]
         }
       }else{
-        val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${AlphaVantage.API_KEY}"
+        val url = s"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&outputsize=full&apikey=${apiKey}"
         println(s"curl -XGET '${url}'")
         Http().singleRequest(HttpRequest(uri = url)).flatMap { response =>
           Unmarshal(response.entity).to[AlphaVantage.TimeSeriesDailyResponse]
@@ -380,8 +373,8 @@ object AlphaVantage{
 
 }
 
-class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer, um: Reads[T]) extends TimeSeries(
-  url = s"https://www.alphavantage.co/query?function=${function}&symbol=${symbol}&interval=${interval.period}&apikey=${AlphaVantage.API_KEY}",
+class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, apiKey: String, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer, um: Reads[T]) extends TimeSeries(
+  url = s"https://www.alphavantage.co/query?function=${function}&symbol=${symbol}&interval=${interval.period}&apikey=${apiKey}",
   interval = interval.toDuration, Some(tz), fuzz) with PlayJsonSupport{
 
   def json(): Source[Try[Future[T]], Cancellable] = super.apply().map{
@@ -390,8 +383,8 @@ class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interv
   }
 }
 
-case class AlphaVantageTimeSeries(symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer)
-  extends AlphaVantage[AlphaVantage.TimeSeriesResponse]("TIME_SERIES_INTRADAY", symbol, interval, tz)
+case class AlphaVantageTimeSeries(symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, apiKey: String, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer)
+  extends AlphaVantage[AlphaVantage.TimeSeriesResponse]("TIME_SERIES_INTRADAY", symbol, interval, tz, apiKey)
 
 
 
@@ -423,6 +416,9 @@ class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer
 
   def sma(symbol: String, interval: AlphaVantage.Interval, timePeriod: Int)(implicit um: Reads[AlphaVantage.SMAResponse]) =
     http(baseUrl + s"SMA&time_period=${timePeriod}&series_type=close&symbol=${symbol}&interval=${interval.period}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def daily(symbol: String, outputsize: String = "compact")(implicit um: Reads[AlphaVantage.TimeSeriesDailyResponse]) =
+    http(baseUrl + s"TIME_SERIES_DAILY&symbol=${symbol}&outputsize=${outputsize}&apikey=${apikey}").flatMap(x => unmarshal(x) )
 }
 
 

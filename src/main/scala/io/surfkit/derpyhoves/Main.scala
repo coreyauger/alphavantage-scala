@@ -42,6 +42,7 @@ object Main extends App{
 
 
     try {
+      val api = new AlphaVantageApi(API_KEY)
       /*println("calling EMA")
       val fx = AlphaVantage.AlphaVantageEMA.get("MSFT", AlphaVantage.Interval.`1min`, 60)
       fx.foreach { x =>
@@ -53,9 +54,28 @@ object Main extends App{
         println(s"GOT IT: ${x}")
       }*/
 
-      println("calling STOCHF")
-      val fx3 = AlphaVantage.AlphaVantageStochasticFast.get("MSFT", AlphaVantage.Interval.`1min`, 10, 3)
+      /*println("calling STOCHF")
+      val fx3 = api.stochasticFast("MSFT", AlphaVantage.Interval.daily, 10, 3)
       fx3.foreach { x =>
+        println(s"GOT IT: ${x}")
+      }*/
+
+     /* println("calling RSI")
+      val fx2 = api.rsi("MSFT", AlphaVantage.Interval.daily, 2)
+      fx2.foreach { x =>
+        println(s"GOT IT: ${x}")
+      }*/
+
+      /*println("calling SMA")
+      val fx2 = api.sma("MSFT", AlphaVantage.Interval.daily, 200)
+      fx2.foreach { x =>
+        println(s"GOT IT: ${x}")
+      }*/
+
+
+      println("calling daily")
+      val fx2 = api.daily("MSFT")
+      fx2.foreach { x =>
         println(s"GOT IT: ${x}")
       }
       Thread.currentThread.join()
