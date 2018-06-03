@@ -2,7 +2,7 @@ package io.surfkit.derpyhoves.flows
 
 import akka.actor.{ActorSystem, Cancellable}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse}
+import akka.http.scaladsl.model._
 import play.api.libs.json._
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.Materializer
@@ -371,6 +371,39 @@ object AlphaVantage{
       }
   }
 
+
+
+  // Slack Helper classes ...
+  case class SlackField(
+              title: String,
+              value: String,
+              short: Boolean ) extends AV
+  implicit val SlackFieldWrites = Json.writes[SlackField]
+  implicit val SlackFieldReads = Json.reads[SlackField]
+
+  case class SlackAttachment(
+            fallback: String,
+            title: String,
+            text: String,
+            color: Option[String] = None,
+            pretext: Option[String] = None,
+            author_name: Option[String] = None,
+            author_link: Option[String] = None,
+            author_icon: Option[String] = None,
+            title_link: Option[String] = None,
+            fields: Seq[SlackField] = Seq.empty,
+            image_url: Option[String] = None,
+            thumb_url: Option[String] = None,
+            footer: Option[String] = None,
+            footer_icon: Option[String] = None,
+            ts: Option[Long] = None) extends AV
+  implicit val SlackAttachmentWrites = Json.writes[SlackAttachment]
+  implicit val SlackAttachmentReads = Json.reads[SlackAttachment]
+
+  case class SlackAttachments(attachments: Seq[SlackAttachment]) extends AV
+  implicit val SlackAttachmentsWrites = Json.writes[SlackAttachments]
+  implicit val SlackAttachmentsReads = Json.reads[SlackAttachments]
+
 }
 
 class AlphaVantage[T <: AlphaVantage.AV](function: String,symbol: String, interval: AlphaVantage.Interval, tz: DateTimeZone, apiKey: String, fuzz: Double = 5.0)(implicit system: ActorSystem, materializer: Materializer, um: Reads[T]) extends TimeSeries(
@@ -389,9 +422,6 @@ case class AlphaVantageTimeSeries(symbol: String, interval: AlphaVantage.Interva
 
 
 
-
-
-
 class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer: Materializer, ex: ExecutionContext) extends PlayJsonSupport {
 
   val baseUrl = "https://www.alphavantage.co/query?function="
@@ -400,6 +430,13 @@ class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer
 
   def unmarshal[T <: AlphaVantage.AV](response: HttpResponse)(implicit um: Reads[T]):Future[T] = Unmarshal(response.entity).to[T]
 
+  def post[T <: AlphaVantage.AV](url: String, post: T)(implicit uw: Writes[T]) = {
+    val json = Json.stringify(uw.writes(post))
+    val jsonEntity = HttpEntity(ContentTypes.`application/json`, json)
+    println(s"curl -XPOST '${url}' -d '${json}'")
+    Http().singleRequest(HttpRequest(method = HttpMethods.POST, uri = s"${url}", entity = jsonEntity))
+
+  }
 
   // API FUNCTIONS
   def stochasticFast(symbol: String, interval: AlphaVantage.Interval, fastK: Int, fastD: Int, matype: AlphaVantage.MaType = AlphaVantage.MaType.SMA)(implicit um: Reads[AlphaVantage.STOCHFResponse]) =
@@ -419,6 +456,8 @@ class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer
 
   def daily(symbol: String, outputsize: String = "compact")(implicit um: Reads[AlphaVantage.TimeSeriesDailyResponse]) =
     http(baseUrl + s"TIME_SERIES_DAILY&symbol=${symbol}&outputsize=${outputsize}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def sendSlack(webhookUrl: String, attachments: AlphaVantage.SlackAttachments) = post(webhookUrl, attachments)
 }
 
 
