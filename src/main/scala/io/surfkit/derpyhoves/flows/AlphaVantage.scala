@@ -384,7 +384,7 @@ object AlphaVantage{
   case class SlackAttachment(
             fallback: String,
             title: String,
-            text: String,
+            text: Option[String] = None,
             color: Option[String] = None,
             pretext: Option[String] = None,
             author_name: Option[String] = None,

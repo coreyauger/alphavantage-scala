@@ -78,7 +78,7 @@ object Main extends App{
       fx2.foreach { x =>
         println(s"GOT IT: ${x}")
       }
-      
+
       Thread.currentThread.join()
 /*
       val json =
