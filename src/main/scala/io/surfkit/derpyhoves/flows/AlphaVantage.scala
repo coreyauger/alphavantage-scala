@@ -426,7 +426,7 @@ class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer
 
   val baseUrl = "https://www.alphavantage.co/query?function="
 
-  def http(url: String) = Http().singleRequest(HttpRequest(uri = url))
+  def http(url: String) =  Http().singleRequest(HttpRequest(uri = url))
 
   def unmarshal[T <: AlphaVantage.AV](response: HttpResponse)(implicit um: Reads[T]):Future[T] = Unmarshal(response.entity).to[T]
 

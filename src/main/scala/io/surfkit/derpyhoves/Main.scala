@@ -8,7 +8,7 @@ import play.api.libs.json.Json
 
 object Main extends App{
 
-  val API_KEY = "PMGX9ASKF5L4PW7E"
+
 
   override def main(args: Array[String]) {
 
@@ -42,6 +42,7 @@ object Main extends App{
 
 
     try {
+      val API_KEY = "PMGX9ASKF5L4PW7E"
       val api = new AlphaVantageApi(API_KEY)
       /*println("calling EMA")
       val fx = AlphaVantage.AlphaVantageEMA.get("MSFT", AlphaVantage.Interval.`1min`, 60)
