@@ -73,8 +73,8 @@ object Main extends App{
       }*/
 
 
-      println("calling daily")
-      val fx2 = api.daily("MSFT")
+      println("calling hourly")
+      val fx2 = api.hourly("MSFT")
       fx2.foreach { x =>
         println(s"GOT IT: ${x}")
       }

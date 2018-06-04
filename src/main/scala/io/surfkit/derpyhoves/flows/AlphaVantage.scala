@@ -433,7 +433,7 @@ class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer
   def post[T <: AlphaVantage.AV](url: String, post: T)(implicit uw: Writes[T]) = {
     val json = Json.stringify(uw.writes(post))
     val jsonEntity = HttpEntity(ContentTypes.`application/json`, json)
-    println(s"curl -XPOST '${url}' -d '${json}'")
+    //println(s"curl -XPOST '${url}' -d '${json}'")
     Http().singleRequest(HttpRequest(method = HttpMethods.POST, uri = s"${url}", entity = jsonEntity))
 
   }
@@ -456,6 +456,9 @@ class AlphaVantageApi(apikey: String)(implicit system: ActorSystem, materializer
 
   def daily(symbol: String, outputsize: String = "compact")(implicit um: Reads[AlphaVantage.TimeSeriesDailyResponse]) =
     http(baseUrl + s"TIME_SERIES_DAILY&symbol=${symbol}&outputsize=${outputsize}&apikey=${apikey}").flatMap(x => unmarshal(x) )
+
+  def hourly(symbol: String, outputsize: String = "compact")(implicit um: Reads[AlphaVantage.TimeSeriesResponse]) =
+    http(baseUrl + s"TIME_SERIES_INTRADAY&interval=60min&symbol=${symbol}&outputsize=${outputsize}&apikey=${apikey}").flatMap(x => unmarshal(x) )
 
   def sendSlack(webhookUrl: String, attachments: AlphaVantage.SlackAttachments) = post(webhookUrl, attachments)
 }
